@@ -1,3 +1,5 @@
+<p align="center"><img src="icon.svg" width="80" height="80" alt=""></p>
+
 # slideshow
 
 Show the pictures in a directory as a slideshow in your browser.
@@ -172,6 +174,9 @@ server running for the others.
   a picture is only fetched once as you navigate past it.
 - Photos are displayed using their embedded EXIF orientation, which browsers
   apply automatically.
+- The favicon is built into `slideshow.py` (as `ICON_SVG`) so the tool stays a
+  single file, and served at both `/icon.svg` and `/favicon.ico`. `icon.svg`
+  holds the same artwork for use outside the tool.
 - Press `Ctrl-C` in the terminal to stop the server.
 
 ## License

@@ -549,6 +549,39 @@ body.stopped .quit { display: none; }
 }
 """
 
+# The favicon: a picture above a label bar, with a muted accent chip standing
+# in for the copy button. Same artwork as icon.svg in the repo — if you change
+# one, change the other. Kept inline so the tool stays a single file.
+ICON_SVG = r"""<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64"
+     role="img" aria-label="slideshow">
+  <defs>
+    <linearGradient id="tile" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#1b222b"/>
+      <stop offset="1" stop-color="#0c0e11"/>
+    </linearGradient>
+    <linearGradient id="stage" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#313e4c"/>
+      <stop offset="1" stop-color="#171e26"/>
+    </linearGradient>
+    <clipPath id="photo">
+      <rect x="15" y="13" width="34" height="28.5" rx="3"/>
+    </clipPath>
+  </defs>
+  <rect width="64" height="64" rx="14" fill="url(#tile)"/>
+  <rect x="0.6" y="0.6" width="62.8" height="62.8" rx="13.4"
+        fill="none" stroke="#8d97a5" stroke-opacity=".22"/>
+  <rect x="15" y="13" width="34" height="28.5" rx="3"
+        fill="url(#stage)" stroke="#7b9cc4" stroke-opacity=".6"/>
+  <g clip-path="url(#photo)">
+    <circle cx="22.5" cy="22.5" r="3.4" fill="#c3cfdb" fill-opacity=".88"/>
+    <path d="M15 41.5 24.5 31.5 33 41.5Z" fill="#8d97a5" fill-opacity=".42"/>
+    <path d="M15 41.5 31 22 49 41.5Z" fill="#66717f" fill-opacity=".95"/>
+  </g>
+  <rect x="15" y="46" width="21" height="5" rx="2.5" fill="#8d97a5" fill-opacity=".42"/>
+  <rect x="39.5" y="46" width="9.5" height="5" rx="2.5" fill="#7b9cc4" fill-opacity=".72"/>
+</svg>
+"""
+
 PAGE_JS = r"""
 (() => {
   "use strict";
@@ -890,6 +923,7 @@ PAGE_TEMPLATE = r"""<!DOCTYPE html>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="dark">
 <title>slideshow</title>
+<link rel="icon" type="image/svg+xml" href="/icon.svg">
 <style>__CSS__</style>
 </head>
 <body>
@@ -931,6 +965,10 @@ __JS__
 
 # The CSS/JS substitution happens once, at import time.
 PAGE = PAGE_TEMPLATE.replace("__CSS__", PAGE_CSS).replace("__JS__", PAGE_JS)
+
+# Encoded once too. Browsers ask for /favicon.ico unprompted even when the page
+# links an icon, so both routes hand out the same bytes.
+ICON = ICON_SVG.encode("utf-8")
 
 
 def render_page(
@@ -1143,10 +1181,11 @@ def build_handler(
                 self._send(200, page, "text/html; charset=utf-8", "no-store")
             elif route.startswith("/image/"):
                 self._send_image(route[len("/image/") :])
-            elif route == "/favicon.ico":
-                self.send_response(204)
-                self.send_header("Content-Length", "0")
-                self.end_headers()
+            elif route in ("/icon.svg", "/favicon.ico"):
+                # SVG for both. Chrome, Edge and Firefox draw it from either
+                # route; Safari only understands the linked <link rel="icon">
+                # tag for ICO/PNG, so it simply shows no icon, as before.
+                self._send(200, ICON, "image/svg+xml; charset=utf-8", "public, max-age=3600")
             else:
                 self.send_error(404, "Not found")
 
