@@ -68,6 +68,8 @@ Because the argument is optional, `cd ~/Pictures && slideshow` is the same as
 | Click the right half of the screen | Next image |
 | Click a thumbnail | Jump to that image |
 | `Space` | Pause / resume, only when `--timeout` is set |
+| `C` | Copy the full path of the current image |
+| Click the copy icon in the label bar | Copy the full path of the current image |
 | `Esc` | Stop the server |
 | Click the **×** in the top-right corner | Stop the server |
 
@@ -81,6 +83,23 @@ relative to the directory you passed in:
 Navigation stops at the first and last image rather than wrapping around. At
 the ends the corresponding thumbnail slot dims, and the hint on that side is
 suppressed.
+
+### Copying a path
+
+The copy icon in the label bar, or `C`, puts the **absolute** path of the
+current picture on the clipboard:
+
+```
+/Users/paul/Pictures/holiday/beach.jpg
+```
+
+That is ready to paste into a terminal, or into Finder with `Cmd-Shift-G`. The
+icon turns into a green tick to confirm. Sub-directories are included, and it
+works for HEIC and TIFF files too, which is the quickest way to get one open in
+Preview.
+
+Clicking anywhere in the label bar never navigates, so a near miss on the small
+copy button cannot skip to the next picture.
 
 ## Ordering
 

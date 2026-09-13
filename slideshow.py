@@ -349,12 +349,64 @@ main {
 
 .autostate {
   flex: 0 0 auto;
-  margin-left: auto;
   padding-left: 10px;
   color: var(--accent);
   font-size: 12px;
   font-variant-numeric: tabular-nums;
 }
+
+/* Copy button ------------------------------------------------------------ */
+
+.copy {
+  display: grid;
+  place-items: center;
+  align-self: center;
+  flex: 0 0 auto;
+  /* Deterministic right alignment: .dirpath grows to absorb the free space
+     when the picture has a sub-directory, and this auto margin covers the
+     case where it is hidden and nothing else can grow. */
+  margin-left: auto;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 1px solid var(--edge);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  transition: color 0.16s ease, border-color 0.16s ease, background 0.16s ease;
+}
+
+.copy svg {
+  display: block;
+  width: 15px;
+  height: 15px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.copy:hover,
+.copy:focus-visible {
+  color: var(--fg);
+  border-color: rgba(99, 164, 255, 0.55);
+  background: rgba(99, 164, 255, 0.12);
+}
+
+.copy:focus { outline: none; }
+
+.copy .icon-done { display: none; }
+
+.copy.copied {
+  color: #7ce3b2;
+  border-color: rgba(124, 227, 178, 0.55);
+  background: rgba(124, 227, 178, 0.12);
+}
+
+.copy.copied .icon-copy { display: none; }
+.copy.copied .icon-done { display: block; }
 
 /* Formats the browser cannot decode ------------------------------------- */
 
@@ -513,18 +565,55 @@ PAGE_JS = r"""
   const railNext = document.getElementById("rail-next");
   const autoEl = document.getElementById("autostate");
   const quitButton = document.getElementById("quit");
+  const copyButton = document.getElementById("copy");
 
   // A fresh id per page load: the server uses it to tell a reload (close then
   // open, same browser) from a genuine tab close.
   const pageId = Math.random().toString(36).slice(2) + Date.now().toString(36);
+
+  // The markup owns the wording; this is just what to restore after a copy.
+  const copyTitle = copyButton.title;
 
   let current = 0;
   let paused = false;
   let finished = false;
   let stopped = false;
   let timer = null;
+  let copyTimer = null;
 
   const urlFor = (index) => "/image/" + index + "?v=" + CONFIG.token;
+
+  // The manifest stores paths relative to the directory, so join the root back
+  // on to give something that can be pasted into a terminal or Finder.
+  const absolutePath = (item) =>
+    CONFIG.root.replace(/\/+$/, "") + "/" + item.path;
+
+  const copyText = async (text) => {
+    // 127.0.0.1 counts as a secure context, so the async clipboard is normally
+    // available; the textarea path is a fallback for anything older.
+    try {
+      if (navigator.clipboard && window.isSecureContext) {
+        await navigator.clipboard.writeText(text);
+        return true;
+      }
+    } catch (error) {
+      /* fall through */
+    }
+    try {
+      const area = document.createElement("textarea");
+      area.value = text;
+      area.setAttribute("readonly", "");
+      area.style.position = "fixed";
+      area.style.top = "-1000px";
+      document.body.append(area);
+      area.select();
+      const ok = document.execCommand("copy");
+      area.remove();
+      return ok;
+    } catch (error) {
+      return false;
+    }
+  };
 
   const post = (route, body) => {
     try {
@@ -694,15 +783,38 @@ PAGE_JS = r"""
     stopServer();
   });
 
+  const copyCurrentPath = async () => {
+    if (stopped) return;
+    const ok = await copyText(absolutePath(items[current]));
+    copyButton.classList.toggle("copied", ok);
+    copyButton.title = ok ? "Copied" : "Copy failed";
+    clearTimeout(copyTimer);
+    copyTimer = setTimeout(() => {
+      copyButton.classList.remove("copied");
+      copyButton.title = copyTitle;
+    }, 1400);
+  };
+
+  copyButton.addEventListener("click", (event) => {
+    event.preventDefault();
+    copyCurrentPath();
+  });
+
   document.addEventListener("click", (event) => {
     if (stopped) return;
     const target = event.target instanceof Element ? event.target : null;
-    if (target && target.closest(".quit")) return;
+
     const thumb = target ? target.closest("[data-index]") : null;
     if (thumb) {
       go(Number(thumb.dataset.index));
       return;
     }
+    // Thumbnails are handled above. Everything else that is a control - the
+    // copy button, the quit button - and the whole label bar must not double
+    // as a navigation click, or a near miss on the small copy button would
+    // advance the slideshow.
+    if (target && target.closest("button, #labelbar")) return;
+
     step(event.clientX < window.innerWidth / 2 ? -1 : 1);
   });
 
@@ -719,6 +831,11 @@ PAGE_JS = r"""
     } else if (event.key === "ArrowRight") {
       event.preventDefault();
       step(1);
+    } else if ((event.key === "c" || event.key === "C")
+               && !event.metaKey && !event.ctrlKey) {
+      // Leave Cmd-C alone so the browser can copy a text selection.
+      event.preventDefault();
+      copyCurrentPath();
     } else if (event.key === " " || event.key === "Spacebar") {
       if (!CONFIG.timeout) return;
       event.preventDefault();
@@ -733,7 +850,7 @@ PAGE_JS = r"""
   document.addEventListener("mousemove", (event) => {
     if (stopped) return;
     const target = event.target instanceof Element ? event.target : null;
-    if (target && target.closest(".quit")) {
+    if (target && target.closest(".quit, .copy")) {
       hint = "";
       document.body.classList.remove("hint-left", "hint-right");
       return;
@@ -786,6 +903,16 @@ PAGE_TEMPLATE = r"""<!DOCTYPE html>
       <span class="dirpath" id="dirpath"></span>
       <span class="filename" id="filename"></span>
       <span class="autostate" id="autostate" hidden></span>
+      <button class="copy" id="copy" type="button" title="Copy the full path (C)"
+              aria-label="Copy the full path of this image">
+        <svg class="icon-copy" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+          <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+          <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+        </svg>
+        <svg class="icon-done" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+          <polyline points="20 6 9 17 4 12"></polyline>
+        </svg>
+      </button>
     </div>
   </main>
   <aside class="rail" id="rail-next" aria-label="Next image"></aside>
@@ -818,7 +945,9 @@ def render_page(
     config = {
         "timeout": timeout,
         "token": cache_token,
-        "root": root.name or str(root),
+        # Sent once rather than per item: repeating an absolute prefix across
+        # thousands of entries bloats the page for no benefit.
+        "root": str(root),
         "items": [
             {"name": entry.name, "path": entry.rel_path, "unsupported": entry.unsupported}
             for entry in entries
@@ -1099,6 +1228,9 @@ def build_parser() -> argparse.ArgumentParser:
             "  click the right screen half next image\n"
             "  click a thumbnail           jump to that image\n"
             "  space                       pause / resume --timeout\n"
+            "\n"
+            "copying:\n"
+            "  c, or the copy button       copy the full path of this image\n"
             "\n"
             "stopping:\n"
             "  Esc, the x button, or closing the tab stops the server\n"
