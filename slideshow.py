@@ -18,6 +18,7 @@ import json
 import mimetypes
 import os
 import re
+import secrets
 import signal
 import sys
 import threading
@@ -220,25 +221,34 @@ main {
   min-height: 0;
 }
 
+/* The stage is the area left over above the label bar. The frame is taken out
+   of flow so its height does not depend on the picture, and centred with flex
+   rather than grid: a percentage max-height on the image needs a *definite*
+   containing block, and a grid auto-row is content-sized, so the percentage
+   would be ignored and a tall picture would balloon past the label bar.
+   overflow:hidden is belt and braces - nothing can paint over the label bar
+   even if a browser resolves the percentage differently. */
 .stage {
+  position: relative;
   flex: 1 1 auto;
   min-height: 0;
+  overflow: hidden;
 }
 
 .frame {
-  display: grid;
-  place-items: center;
-  width: 100%;
-  height: 100%;
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .frame img {
-  grid-area: 1 / 1;
   max-width: 100%;
   max-height: 100%;
   object-fit: contain;
   border-radius: 10px;
-  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.55);
+  box-shadow: 0 6px 22px rgba(0, 0, 0, 0.45);
   -webkit-user-drag: none;
   animation: fade 0.18s ease both;
 }
@@ -298,6 +308,8 @@ main {
 /* Image label ----------------------------------------------------------- */
 
 .labelbar {
+  position: relative;
+  z-index: 1;
   display: flex;
   align-items: baseline;
   gap: 9px;
@@ -512,7 +524,7 @@ PAGE_JS = r"""
   let stopped = false;
   let timer = null;
 
-  const urlFor = (index) => "/image/" + index;
+  const urlFor = (index) => "/image/" + index + "?v=" + CONFIG.token;
 
   const post = (route, body) => {
     try {
@@ -794,10 +806,18 @@ __JS__
 PAGE = PAGE_TEMPLATE.replace("__CSS__", PAGE_CSS).replace("__JS__", PAGE_JS)
 
 
-def render_page(entries: Sequence[ImageEntry], timeout: Optional[float], root: Path) -> bytes:
-    """Build the viewer page with the image manifest baked in."""
+def render_page(
+    entries: Sequence[ImageEntry], timeout: Optional[float], root: Path, cache_token: str
+) -> bytes:
+    """Build the viewer page with the image manifest baked in.
+
+    *cache_token* is per-run and goes into every image URL. Without it, two
+    runs serving different directories on the same port would both use
+    ``/image/0``, and the browser would reuse the first run's cached picture.
+    """
     config = {
         "timeout": timeout,
+        "token": cache_token,
         "root": root.name or str(root),
         "items": [
             {"name": entry.name, "path": entry.rel_path, "unsupported": entry.unsupported}
@@ -1163,7 +1183,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             )
         return 1
 
-    page = render_page(entries, args.timeout, root)
+    page = render_page(entries, args.timeout, root, secrets.token_hex(4))
     registry = PageRegistry()
     handler = build_handler(entries, page, registry)
 
