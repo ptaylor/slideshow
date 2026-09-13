@@ -1085,6 +1085,7 @@ def build_parser() -> argparse.ArgumentParser:
             "  Ctrl-C in this terminal also stops it\n"
             "\n"
             "examples:\n"
+            "  slideshow\n"
             "  slideshow ~/Pictures\n"
             "  slideshow ~/Pictures -d 2\n"
             "  slideshow ~/Pictures --depth 3 --timeout 5\n"
@@ -1093,7 +1094,9 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "directory",
         metavar="DIR",
-        help="directory holding the images",
+        nargs="?",
+        default=".",
+        help="directory holding the images (default: the current directory)",
     )
     parser.add_argument(
         "-d",

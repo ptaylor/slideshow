@@ -35,12 +35,12 @@ python3 slideshow.py ~/Pictures
 ## Usage
 
 ```
-slideshow <DIR> [-d N] [-t SECONDS]
+slideshow [DIR] [-d N] [-t SECONDS]
 ```
 
 | Option | Meaning |
 | --- | --- |
-| `DIR` | Directory holding the images. Required. |
+| `DIR` | Directory holding the images. Optional — omit it to use the current directory. |
 | `-d`, `--depth N` | How deep to look for images. `1` (the default) is `DIR` itself, `2` adds its immediate sub-directories, `3` adds one level below those, and so on. |
 | `-t`, `--timeout SECONDS` | Automatically advance to the next image after `SECONDS`. Off by default. |
 
@@ -49,11 +49,15 @@ shows only the files directly inside `~/Pictures`; `slideshow ~/Pictures -d 2`
 also includes `~/Pictures/holiday/*.jpg`.
 
 ```sh
+slideshow                             # the current directory
 slideshow ~/Pictures                  # this directory only
 slideshow ~/Pictures -d 2             # include immediate sub-directories
 slideshow ~/Pictures --depth 4        # go four levels deep
 slideshow ~/Pictures --timeout 5      # advance every 5 seconds
 ```
+
+Because the argument is optional, `cd ~/Pictures && slideshow` is the same as
+`slideshow ~/Pictures`.
 
 ## Navigation
 
