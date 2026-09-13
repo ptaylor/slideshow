@@ -174,6 +174,10 @@ server running for the others.
   apply automatically.
 - Press `Ctrl-C` in the terminal to stop the server.
 
+## License
+
+MIT. See [LICENSE](LICENSE).
+
 ## Requirements
 
 Python 3.9 or newer. No third-party packages.
