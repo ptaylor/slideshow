@@ -6,8 +6,9 @@ Show the pictures in a directory as a slideshow in your browser.
 
 `slideshow` scans a directory for images, starts a small web server bound to
 `127.0.0.1` on a non-standard port, and opens a page showing one picture at a
-time. The previous and next pictures appear as thumbnails to the left and
-right, and the counter plus filename sit in a bar underneath the main image.
+time. The picture fills the window, the counter plus filename sit in a bar
+underneath it, and `T` (or the panel icon in that bar) brings up the previous
+and next pictures as thumbnails down the left and right sides.
 
 It is a single Python file using nothing but the standard library — there is
 nothing to install and no build step.
@@ -66,12 +67,15 @@ Because the argument is optional, `cd ~/Pictures && slideshow` is the same as
 | Action | Result |
 | --- | --- |
 | `←` / `→` | Previous / next image |
+| `Space` | Next image |
 | Click the left half of the screen | Previous image |
 | Click the right half of the screen | Next image |
 | Click a thumbnail | Jump to that image |
-| `Space` | Pause / resume, only when `--timeout` is set |
+| `P` | Pause / resume, only when `--timeout` is set |
+| `T` | Show / hide the left and right thumbnails |
 | `C` | Copy the full path of the current image |
 | Click the copy icon in the label bar | Copy the full path of the current image |
+| Click the panel icon in the label bar | Show / hide the left and right thumbnails |
 | `Esc` | Stop the server |
 | Click the **×** in the top-right corner | Stop the server |
 
@@ -84,7 +88,18 @@ relative to the directory you passed in:
 
 Navigation stops at the first and last image rather than wrapping around. At
 the ends the corresponding thumbnail slot dims, and the hint on that side is
-suppressed.
+suppressed (the slots are only there when the thumbnails are showing).
+
+### Showing the thumbnails
+
+The two thumbnail rails are hidden to start with, so the picture gets the full
+width of the window. `T`, or the panel icon at the right end of the label bar,
+brings them in; press it again to send them away. The icon is lit while the
+thumbnails are showing.
+
+They are only ever a shortcut — the click-the-half-of-the-screen navigation and
+`←`, `→` and `Space` behave identically either way, so nothing is lost with
+them out of the way.
 
 ### Copying a path
 

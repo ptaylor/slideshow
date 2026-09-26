@@ -5,8 +5,9 @@
 
 The directory is scanned for image files, a small HTTP server is started on
 127.0.0.1 using a non-standard port, and a browser page is opened showing the
-images one at a time. The previous and next images are shown as thumbnails to
-the left and right of the main picture.
+images one at a time. The picture gets the whole width by default; pressing T
+(or the panel icon in the label bar) brings up the previous and next images as
+thumbnails down the left and right sides.
 
 Standard library only - there is nothing to install.
 """
@@ -355,17 +356,13 @@ main {
   font-variant-numeric: tabular-nums;
 }
 
-/* Copy button ------------------------------------------------------------ */
+/* Small square icon buttons in the label bar ----------------------------- */
 
-.copy {
+.iconbtn {
   display: grid;
   place-items: center;
   align-self: center;
   flex: 0 0 auto;
-  /* Deterministic right alignment: .dirpath grows to absorb the free space
-     when the picture has a sub-directory, and this auto margin covers the
-     case where it is hidden and nothing else can grow. */
-  margin-left: auto;
   width: 28px;
   height: 28px;
   padding: 0;
@@ -377,7 +374,7 @@ main {
   transition: color 0.16s ease, border-color 0.16s ease, background 0.16s ease;
 }
 
-.copy svg {
+.iconbtn svg {
   display: block;
   width: 15px;
   height: 15px;
@@ -388,14 +385,31 @@ main {
   stroke-linejoin: round;
 }
 
-.copy:hover,
-.copy:focus-visible {
+.iconbtn:hover,
+.iconbtn:focus-visible {
   color: var(--fg);
   border-color: rgba(99, 164, 255, 0.55);
   background: rgba(99, 164, 255, 0.12);
 }
 
-.copy:focus { outline: none; }
+.iconbtn:focus { outline: none; }
+
+/* After the hover rule above, and with the same specificity, so a lit toggle
+   stays lit while the pointer is over it. */
+.iconbtn[aria-pressed="true"] {
+  color: var(--accent);
+  border-color: rgba(99, 164, 255, 0.55);
+  background: rgba(99, 164, 255, 0.12);
+}
+
+.copy {
+  /* Deterministic right alignment: .dirpath grows to absorb the free space
+     when the picture has a sub-directory, and this auto margin covers the
+     case where it is hidden and nothing else can grow. Only the leftmost of
+     the two buttons carries it, so they stay together at the right edge
+     instead of splitting the free space between them. */
+  margin-left: auto;
+}
 
 .copy .icon-done { display: none; }
 
@@ -508,6 +522,14 @@ body.hint-right:not(.at-end) .halfhint.right { opacity: 1; }
 
 .quit:focus { outline: none; }
 
+/* Thumbnails hidden (T) -------------------------------------------------- */
+
+/* Same single-column collapse as the stopped state, and for the same reason:
+   with the rails out of grid auto-placement <main> would land in the first
+   track and keep the narrow left column instead of using the whole width. */
+body.no-rails #app { grid-template-columns: minmax(0, 1fr); }
+body.no-rails .rail { display: none; }
+
 /* Stopped state ---------------------------------------------------------- */
 
 /* Collapse to a single column: hiding the rails with display:none removes them
@@ -599,6 +621,7 @@ PAGE_JS = r"""
   const autoEl = document.getElementById("autostate");
   const quitButton = document.getElementById("quit");
   const copyButton = document.getElementById("copy");
+  const railsButton = document.getElementById("rails");
 
   // A fresh id per page load: the server uses it to tell a reload (close then
   // open, same browser) from a genuine tab close.
@@ -611,6 +634,10 @@ PAGE_JS = r"""
   let paused = false;
   let finished = false;
   let stopped = false;
+  // The thumbnails start hidden: the picture is the point, the neighbours are
+  // a shortcut. <body class="no-rails"> in the template matches this, so the
+  // rails never paint before the script runs.
+  let railsVisible = false;
   let timer = null;
   let copyTimer = null;
 
@@ -816,6 +843,27 @@ PAGE_JS = r"""
     stopServer();
   });
 
+  // Hiding the side thumbnails hands their width to the picture; the class
+  // does the layout, aria-pressed and the tooltip just describe the state.
+  const applyRails = () => {
+    document.body.classList.toggle("no-rails", !railsVisible);
+    railsButton.setAttribute("aria-pressed", railsVisible ? "false" : "true");
+    railsButton.title =
+      (railsVisible ? "Hide" : "Show") + " the side thumbnails (T)";
+  };
+
+  const toggleRails = () => {
+    railsVisible = !railsVisible;
+    applyRails();
+  };
+
+  railsButton.addEventListener("click", (event) => {
+    event.preventDefault();
+    toggleRails();
+  });
+
+  applyRails();
+
   const copyCurrentPath = async () => {
     if (stopped) return;
     const ok = await copyText(absolutePath(items[current]));
@@ -858,24 +906,39 @@ PAGE_JS = r"""
       return;
     }
     if (stopped) return;
+    const target = event.target instanceof Element ? event.target : null;
+    // Space on a focused control must stay with the browser, otherwise the
+    // key that activates a thumbnail or one of the buttons would be swallowed.
+    const onControl = target
+      ? Boolean(target.closest("button, input, textarea, select, a[href]"))
+      : false;
+    const plain = !event.metaKey && !event.ctrlKey && !event.altKey;
     if (event.key === "ArrowLeft") {
       event.preventDefault();
       step(-1);
     } else if (event.key === "ArrowRight") {
       event.preventDefault();
       step(1);
-    } else if ((event.key === "c" || event.key === "C")
-               && !event.metaKey && !event.ctrlKey) {
-      // Leave Cmd-C alone so the browser can copy a text selection.
-      event.preventDefault();
-      copyCurrentPath();
     } else if (event.key === " " || event.key === "Spacebar") {
+      if (onControl || !plain) return;
+      event.preventDefault();
+      step(1);
+    } else if ((event.key === "p" || event.key === "P") && plain) {
+      // Pause / resume, only meaningful when something is playing.
       if (!CONFIG.timeout) return;
       event.preventDefault();
       paused = !paused;
       if (!paused) finished = false;
       updateAutoState();
       schedule();
+    } else if ((event.key === "t" || event.key === "T") && plain) {
+      event.preventDefault();
+      toggleRails();
+    } else if ((event.key === "c" || event.key === "C")
+               && !event.metaKey && !event.ctrlKey) {
+      // Leave Cmd-C alone so the browser can copy a text selection.
+      event.preventDefault();
+      copyCurrentPath();
     }
   });
 
@@ -883,7 +946,7 @@ PAGE_JS = r"""
   document.addEventListener("mousemove", (event) => {
     if (stopped) return;
     const target = event.target instanceof Element ? event.target : null;
-    if (target && target.closest(".quit, .copy")) {
+    if (target && target.closest(".quit, .copy, .rails")) {
       hint = "";
       document.body.classList.remove("hint-left", "hint-right");
       return;
@@ -926,7 +989,7 @@ PAGE_TEMPLATE = r"""<!DOCTYPE html>
 <link rel="icon" type="image/svg+xml" href="/icon.svg">
 <style>__CSS__</style>
 </head>
-<body>
+<body class="no-rails">
 <div id="app">
   <aside class="rail" id="rail-prev" aria-label="Previous image"></aside>
   <main>
@@ -937,7 +1000,7 @@ PAGE_TEMPLATE = r"""<!DOCTYPE html>
       <span class="dirpath" id="dirpath"></span>
       <span class="filename" id="filename"></span>
       <span class="autostate" id="autostate" hidden></span>
-      <button class="copy" id="copy" type="button" title="Copy the full path (C)"
+      <button class="iconbtn copy" id="copy" type="button" title="Copy the full path (C)"
               aria-label="Copy the full path of this image">
         <svg class="icon-copy" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
           <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
@@ -945,6 +1008,14 @@ PAGE_TEMPLATE = r"""<!DOCTYPE html>
         </svg>
         <svg class="icon-done" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
           <polyline points="20 6 9 17 4 12"></polyline>
+        </svg>
+      </button>
+      <button class="iconbtn rails" id="rails" type="button" aria-pressed="true"
+              title="Show the side thumbnails (T)" aria-label="Side thumbnails">
+        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+          <rect x="2.5" y="5" width="19" height="14" rx="2.5"></rect>
+          <line x1="7.5" y1="5" x2="7.5" y2="19"></line>
+          <line x1="16.5" y1="5" x2="16.5" y2="19"></line>
         </svg>
       </button>
     </div>
@@ -1266,7 +1337,9 @@ def build_parser() -> argparse.ArgumentParser:
             "  click the left screen half  previous image\n"
             "  click the right screen half next image\n"
             "  click a thumbnail           jump to that image\n"
-            "  space                       pause / resume --timeout\n"
+            "  space                       next image\n"
+            "  p                           pause / resume --timeout\n"
+            "  t                           show / hide the side thumbnails\n"
             "\n"
             "copying:\n"
             "  c, or the copy button       copy the full path of this image\n"
@@ -1307,7 +1380,7 @@ def build_parser() -> argparse.ArgumentParser:
         type=positive_float,
         default=None,
         metavar="SECONDS",
-        help="automatically advance to the next image after SECONDS (space pauses)",
+        help="automatically advance to the next image after SECONDS (p pauses)",
     )
     return parser
 
